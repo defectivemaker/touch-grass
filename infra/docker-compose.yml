@@ -1,0 +1,104 @@
+version: "3.8"
+
+services:
+    db:
+        image: postgis/postgis:latest
+        environment:
+            POSTGRES_DB: ${PGDATABASE}
+            POSTGRES_USER: ${DB_USER}
+            POSTGRES_PASSWORD: ${DB_PASS}
+        volumes:
+            - ${DB_DATA_PATH:-./db/db_data}:/var/lib/postgresql/data
+            - ./db/postgresql-init-scripts:/docker-entrypoint-initdb.d
+            - ./db/csv:/var/lib/postgres-files/
+        ports:
+            - "${DB_PORT:-5432}:5432"
+        networks:
+            - backend
+
+    go-backend:
+        build:
+            context: ../indicum-server
+        ports:
+            - "${GO_PORT_1:-8081}:8081"
+            - "${GO_PORT_2:-8888}:8888"
+        depends_on:
+            - db
+        environment:
+            DB_HOST: db
+            DB_PORT: 5432
+            PGDATABASE: ${PGDATABASE}
+            DB_USER: ${DB_USER}
+            DB_PASS: ${DB_PASS}
+            SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET}
+            HTTPLISTENADDRESS: ${HTTPLISTENADDRESS}
+            TCPLISTENADDRESS: ${TCPLISTENADDRESS}
+            FRONTEND_SERVER_ADDRESS: ${FRONTEND_SERVER_ADDRESS}
+            LOG_LOCATION: ${LOG_LOCATION}
+            CERT_LOCATION: ${CERT_LOCATION}
+            # since we volume mount the appropriate cert folder
+            TLS_CERT_FILE: /app/certs/fullchain.pem
+            TLS_PRIV_KEY: /app/certs/privkey.pem
+        volumes:
+            - ./logs/go-backend:/app/logs
+            - ${CERT_LOCATION}:/app/certs:ro,follow
+        networks:
+            - backend
+            - frontend
+        restart: unless-stopped
+        logging:
+            driver: "json-file"
+            options:
+                max-size: "${LOG_MAX_SIZE:-200m}"
+                max-file: "${LOG_MAX_FILE:-10}"
+
+    nextjs:
+        build:
+            context: ../indicum-frontend
+            args:
+                NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://go-backend:8081}
+                NEXT_PUBLIC_GOLANG_URL: ${NEXT_PUBLIC_GOLANG_URL}
+                NEXT_PUBLIC_NEXTJS_URL: ${NEXT_PUBLIC_NEXTJS_URL}
+                NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+                NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        depends_on:
+            - go-backend
+        environment:
+            NODE_ENV: production
+            NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://go-backend:8081}
+            NEXT_PUBLIC_GOLANG_URL: ${NEXT_PUBLIC_GOLANG_URL}
+            NEXT_PUBLIC_NEXTJS_URL: ${NEXT_PUBLIC_NEXTJS_URL}
+            NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+            NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        networks:
+            - frontend
+        expose:
+            - 3000
+        logging:
+            driver: "json-file"
+            options:
+                max-size: "${LOG_MAX_SIZE:-200m}"
+                max-file: "${LOG_MAX_FILE:-10}"
+
+    nginx:
+        build:
+            context: ./nginx
+        ports:
+            - "80:80"
+            - "443:443"
+        depends_on:
+            - nextjs
+        networks:
+            - frontend
+        volumes:
+            - ${CERT_LOCATION}:/etc/nginx/ssl:ro,follow
+        environment:
+            NGINX_DOMAIN: ${NGINX_DOMAIN}
+
+networks:
+    backend:
+    frontend:
+
+volumes:
+    db_data:
+        driver: local

@@ -1,0 +1,11 @@
+[Unit]
+Description=Keep indicum running
+
+[Service]
+Type=simple
+ExecStart=/bin/sh -c '/usr/local/bin/run-on-device.sh >> /var/log/run-on-device.log 2>&1'
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

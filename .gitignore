@@ -1,0 +1,53 @@
+*.pem
+*.key
+*.srl
+
+# for server
+server/internal/server/local-certs/
+server/internal/server/certs/
+
+server/client-indicum
+server/server-indicum
+server/server.log
+server/go.sum
+
+
+# for client
+client/client-indicum
+client/go.mod
+client/go.sum
+
+# for infra
+infra/logs/*
+infra/logs/
+infra/db/db_data/*
+infra/certs/*
+
+
+# for frontend
+frontend/node_modules
+frontend/.pnp
+frontend/.pnp.js
+frontend/.yarn/install-state.gz
+
+frontend/coverage
+
+frontend/.next/
+frontend/out/
+
+frontend/build
+
+frontend/.DS_Store
+
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+
+frontend/.env*.local
+
+frontend/.vercel
+
+frontend/*.tsbuildinfo
+frontend/next-env.d.ts
+
+frontend/certificates

@@ -1,0 +1,64 @@
+name: Build and Release Go Binary
+
+on:
+  push:
+    branches:
+      - main  # or your default branch
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: '1.18'  # Directly specify Go version without '^'
+
+    - name: Initialize Go module
+      run: |
+        go mod init indicum || echo "Module already initialized"
+        go mod tidy
+
+    - name: Build binary
+      run: |
+        cd client
+        go build -o client-indicum
+
+    - name: Archive production artifacts
+      uses: actions/upload-artifact@v2
+      with:
+        name: client-indicum
+        path: client/client-indicum
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/download-artifact@v2
+      with:
+        name: client-indicum
+        path: release
+
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.run_id }}
+        release_name: Release ${{ github.run_id }}
+        body: 'Description and changelog for the release'
+        draft: false
+        prerelease: false
+
+    - name: Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./release/client-indicum
+        asset_name: client-indicum
+        asset_content_type: application/octet-stream

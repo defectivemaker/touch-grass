@@ -1,0 +1,5 @@
+logs/*
+logs/
+# db/db_data
+db/db_data/*
+certs/*

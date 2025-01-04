@@ -1,0 +1,17 @@
+[connection]
+id=Free Telstra Wi-Fi
+type=wifi
+interface-name=wlan0
+autoconnect=true
+
+[wifi]
+mode=infrastructure
+ssid=Free Telstra Wi-Fi
+
+[ipv4]
+method=auto
+
+[ipv6]
+method=auto
+
+[proxy]

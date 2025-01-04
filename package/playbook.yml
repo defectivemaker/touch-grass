@@ -1,0 +1,101 @@
+---
+- name: Configure the local machine
+  hosts: localhost
+  connection: local
+  become: true
+  vars_prompt:
+      - name: token
+        prompt: "Enter the token"
+        private: no
+  tasks:
+      - name: Install packages
+        ansible.builtin.apt:
+            pkg:
+                - git
+                - macchanger
+      - name: Ensure the group 'indicum' exists
+        ansible.builtin.group:
+            name: indicum
+            state: present
+      - name: Add user indicum
+        ansible.builtin.user:
+            name: indicum
+            group: indicum
+      - name: Creates directory
+        ansible.builtin.file:
+            path: /etc/indicum
+            state: directory
+            owner: indicum
+            group: indicum
+            mode: 0775
+      - name: Generate RSA private key in PEM format
+        ansible.builtin.shell: openssl genpkey -algorithm RSA -out /etc/indicum/priv_key.pem -pkeyopt rsa_keygen_bits:2048
+        args:
+            creates: /etc/indicum/priv_key.pem
+
+      - name: Extract public key from private key in PEM format
+        ansible.builtin.shell: openssl rsa -pubout -in /etc/indicum/priv_key.pem -out /etc/indicum/pub_key.pem
+        args:
+            creates: /etc/indicum/pub_key.pem
+      - name: Reads public key
+        ansible.builtin.slurp:
+            src: /etc/indicum/pub_key.pem
+        register: pub_key
+
+      - name: Decode the public key from base64
+        ansible.builtin.set_fact:
+            pub_key_decoded: "{{ pub_key['content'] | b64decode }}"
+
+      - name: Make API request to map token to public key
+        ansible.builtin.uri:
+            url: "https://<YOUR_DOMAIN>:8081/map-token-pub-key"
+            method: POST
+            body_format: json
+            body:
+                token: "{{ token }}"
+                pub_key: "{{ pub_key_decoded }}"
+        register: api_response
+
+      - name: Save UUID to a file
+        ansible.builtin.copy:
+            content: "{{ api_response.json['uuid'] }}"
+            dest: "/etc/indicum/uuid.txt"
+        when: api_response.json is defined and api_response.json['uuid'] is defined
+
+      - name: Successfully mapped token to pub key
+        ansible.builtin.debug:
+            msg: "Successful API call"
+        when: api_response.status == 200
+
+      - name: Copy run script to bin
+        ansible.builtin.copy:
+            src: ./run-on-device.sh
+            dest: /usr/local/bin
+            mode: 0755
+      - name: Copy go binary to bin
+        ansible.builtin.copy:
+            src: ./client-indicum
+            dest: /usr/local/bin
+            mode: 0755
+      - name: Copy service file to /etc
+        ansible.builtin.copy:
+            src: ./indicum.service
+            dest: /etc/systemd/system
+            mode: 0755
+      - name: Copy nmconnection file to /etc
+        ansible.builtin.copy:
+            src: "./Free Telstra Wi-Fi.nmconnection"
+            dest: /etc/NetworkManager/system-connections
+            owner: root
+            group: root
+            mode: 0600
+      - name: Ensure indicum service is enabled and running
+        ansible.builtin.systemd:
+            name: indicum
+            state: restarted
+            enabled: yes
+            daemon_reload: true
+      - name: Restart NetworkManager service
+        ansible.builtin.systemd:
+            name: NetworkManager
+            state: restarted
