@@ -73,7 +73,6 @@ flowchart TD
 1. Deploy infrastructure:
 ```bash
 cd infra
-cp .env.example .env  # Configure environment variables
 docker-compose up -d
 ```
 
